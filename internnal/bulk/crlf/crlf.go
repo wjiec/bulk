@@ -2,13 +2,13 @@ package crlf
 
 import (
 	"bulk/pkg/fs"
+	"bulk/pkg/utils"
 	"bulk/pkg/xcmd"
 	"bulk/pkg/xsync"
 	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -16,14 +16,17 @@ import (
 )
 
 var flags struct {
-	DryRun    bool     `default:"false" usage:"just print a list of files that will be converted"`
-	Target    string   `default:"unix" usage:"target newline style, optional values are unix and dos"`
-	Recursive bool     `default:"false" shorthand:"r" usage:"recursively convert all files in the directories"`
-	Exclude   []string `usage:"exclude files matching ·patterns·"`
+	DryRun    bool   `default:"false" usage:"just print a list of files that will be converted"`
+	Target    string `default:"unix" usage:"target newline style, optional values are unix and dos"`
+	Recursive bool   `default:"false" shorthand:"r" usage:"recursively convert all files in the directories"`
 }
 
-// UNIX newline style by default
-var from, to = []byte("\r\n"), []byte("\n")
+var (
+	// UNIX newline style by default
+	from, to = []byte("\r\n"), []byte("\n")
+	// ErrNotRegularTextFile represents file is not a regular text file
+	ErrNotRegularTextFile = errors.New("not regular text file")
+)
 
 func Command() *cobra.Command {
 	cmd := &cobra.Command{
@@ -41,19 +44,26 @@ func Command() *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var wg xsync.WaitGroup
-			for filename := range walk(args) {
-				filename := filename
-				wg.Do(func() {
-					if ok, err := convert(filename); err != nil {
-						fmt.Printf("%s(error): %s\n", filename, err)
-					} else if ok {
-						fmt.Printf("%s: ok\n", filename)
-					} else {
-						fmt.Printf("%s(skipped): not regular text file\n", filename)
+			for tuple := range walk(args) {
+				wg.Do(func(args ...interface{}) {
+					if args[1] != nil {
+						fmt.Printf("[ERROR]\t%s\t:\t%s\n", args[0], args[1])
+						return
 					}
-				})
-			}
 
+					if ok, err := convert(args[0].(string)); err != nil {
+						if err == ErrNotRegularTextFile && flags.DryRun {
+							fmt.Printf("[SKIPPED]\t%s\t:\t%s\n", args[0], err)
+						} else if err != ErrNotRegularTextFile {
+							fmt.Printf("[ERROR]\t%s\t:\t%s\n", args[0], err)
+						}
+					} else if !ok && flags.DryRun {
+						fmt.Printf("[SKIPPED]\t%s\t:\tdon't need to convert\n", args[0])
+					} else if flags.DryRun {
+						fmt.Printf("[SUCCESS]\t%s\n", args[0])
+					}
+				}, tuple.First, tuple.Second)
+			}
 			wg.Wait()
 			return nil
 		},
@@ -66,34 +76,26 @@ func Command() *cobra.Command {
 	return cmd
 }
 
-func walk(paths []string) <-chan string {
-	ch := make(chan string)
+func walk(paths []string) <-chan *utils.Tuple {
+	ch := make(chan *utils.Tuple)
 	go func() {
-		for _, path := range paths {
-			if isDir, err := fs.IsDirectory(path); isDir {
-				if flags.Recursive {
-					_ = filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
-						if err != nil {
-							return err
-						}
+		for _, p := range paths {
+			var ok bool
+			var err error
 
-						if info.Mode().IsRegular() {
-							ch <- path
-						}
-						return nil
-					})
-				} else {
-					fmt.Printf("%s(skipped): directory, use '-r' to recursively convert\n", path)
-				}
-			} else if err != nil {
-				fmt.Printf("%s(error): %s\n", path, err)
-			} else if isFile, err := fs.IsRegularFile(path); isFile {
-				ch <- path
-			} else {
-				fmt.Printf("%s(error): %s\n", path, err)
+			if ok, err = fs.IsDirectory(p); ok {
+				err = fs.VisitFiles(p, func(filename string, stat os.FileInfo) error {
+					ch <- utils.NewTuple(filename, nil)
+					return nil
+				})
+			} else if ok, err = fs.IsRegularFile(p); ok {
+				ch <- utils.NewTuple(p, nil)
+			}
+
+			if err != nil {
+				ch <- utils.NewTuple(p, err)
 			}
 		}
-
 		close(ch)
 	}()
 	return ch
@@ -106,8 +108,12 @@ func convert(filename string) (bool, error) {
 		return false, errors.Wrap(err, "unreadable file")
 	}
 
-	// not text file or don't need to convert
-	if bytes.Contains(bs, []byte{0}) || !bytes.Contains(bs, from) {
+	// not regular text file
+	if bytes.Contains(bs, []byte{0}) {
+		return false, ErrNotRegularTextFile
+	}
+	// don't need to convert
+	if !bytes.Contains(bs, from) {
 		return false, nil
 	}
 

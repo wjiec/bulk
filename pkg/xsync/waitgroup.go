@@ -6,10 +6,10 @@ type WaitGroup struct {
 	sync.WaitGroup
 }
 
-func (wg *WaitGroup) Do(fn func()) {
+func (wg *WaitGroup) Do(fn func(args ...interface{}), args ...interface{}) {
 	wg.Add(1)
 	go func() {
-		fn()
+		fn(args...)
 		wg.Done()
 	}()
 }
