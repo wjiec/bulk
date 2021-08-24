@@ -2,18 +2,15 @@ package version
 
 import (
 	"os"
-	"runtime"
 	"text/template"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
-const versionTemplate = `{{.Name}}:
- Version: {{.Version}}
- Go Version: {{.GoVersion}}
- Built: {{.BuildTime}}(Rev: {{.GitRevision}})
-`
+const (
+	versionTemplate = "{{.Name}} version {{.Version}}, build {{.GitRevision}}({{.BuildTime}})\n"
+)
 
 func Command(name, version, buildTime, revision string) *cobra.Command {
 	return &cobra.Command{
@@ -23,12 +20,11 @@ func Command(name, version, buildTime, revision string) *cobra.Command {
 			data := map[string]string{
 				"Name":        name,
 				"Version":     version,
-				"GoVersion":   runtime.Version(),
 				"BuildTime":   buildTime,
 				"GitRevision": revision,
 			}
 
-			tpl, err := template.New("version").Parse(versionTemplate)
+			tpl, err := template.New(name).Parse(versionTemplate)
 			if err != nil {
 				return errors.Wrap(err, "parse version template")
 			}
