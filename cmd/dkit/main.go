@@ -21,11 +21,19 @@ var (
 	exitSignals = []os.Signal{syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT}
 )
 
+var options struct {
+	verbose      bool   `usage:""`
+	cpuProfile   string `usage:""`
+	memProfile   string `usage:""`
+	traceProfile string `usage:""`
+}
+
 func main() {
-	root := &cobra.Command{
-		Use:           Name,
-		SilenceUsage:  true,
-		SilenceErrors: true,
+	root := &cobra.Command{Use: Name, SilenceUsage: true, SilenceErrors: true}
+	if err := kcobra.Bind(root, &options); err != nil {
+		root.SetFlagErrorFunc(func(_ *cobra.Command, _ error) error {
+			return err
+		})
 	}
 
 	root.AddCommand(crlf.Command())
