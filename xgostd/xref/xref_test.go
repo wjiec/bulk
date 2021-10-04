@@ -31,3 +31,18 @@ func TestMustPointer(t *testing.T) {
 	assert.Error(t, MustPointer(v))
 	assert.NoError(t, MustPointer(p))
 }
+
+type VisitStructTestCase struct {
+	Id       int    `json:"id"`
+	Nickname string `json:"nickname"`
+	Password string `json:"password"`
+}
+
+func TestVisitStruct(t *testing.T) {
+	err := VisitStruct(&VisitStructTestCase{}, func(field reflect.StructField, value reflect.Value) bool {
+		assert.Contains(t, []string{"Id", "Nickname", "Password"}, field.Name)
+		return true
+	})
+
+	assert.NoError(t, err)
+}

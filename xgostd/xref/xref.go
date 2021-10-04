@@ -34,15 +34,18 @@ func TypeOf(v interface{}) reflect.Type {
 	}
 }
 
-type Visitor func(reflect.StructField, reflect.Value) (exit bool, err error)
+// Visitor is an iterator that handles each field in the structure
+// if Visitor returns false represents stop the iteration
+type Visitor func(reflect.StructField, reflect.Value) bool
 
 // VisitStruct calling visit for each field in struct
+// if visit returns false, VisitStruct stops the iteration.
 func VisitStruct(v interface{}, visit Visitor) error {
 	rv := reflect.Indirect(ValueOf(v))
 	if rt := rv.Type(); rt.Kind() == reflect.Struct {
 		for i := 0; i < rt.NumField(); i++ {
-			if exit, err := visit(rt.Field(i), rv.Field(i)); exit || err != nil {
-				return err
+			if next := visit(rt.Field(i), rv.Field(i)); !next {
+				return nil
 			}
 		}
 		return nil
