@@ -32,48 +32,24 @@ func TestOnce(t *testing.T) {
 }
 
 func TestWhen(t *testing.T) {
-	wg, cnt := sync.WaitGroup{}, 0
+	var wg sync.WaitGroup
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	When(sigUsr1, sigUsr2).Do(ctx, func(signal os.Signal) {
-		if cnt%2 == 0 {
-			assert.Equal(t, sigUsr1, signal)
-		} else {
-			assert.Equal(t, sigUsr2, signal)
-		}
-
-		cnt++
+		assert.Contains(t, []os.Signal{sigUsr1, sigUsr2}, signal)
 		wg.Done()
 	})
+
+	wg.Add(1)
+	if err := sendSignal(sigUsr1); err != nil {
+		assert.FailNow(t, "send signal", err)
+	}
 
 	wg.Add(1)
 	if err := sendSignal(sigUsr2); err != nil {
 		assert.FailNow(t, "send signal", err)
 	}
 
-	wg.Add(1)
-	if err := sendSignal(sigUsr1); err != nil {
-		assert.FailNow(t, "send signal", err)
-	}
-
 	wg.Wait()
-	assert.Equal(t, 2, cnt)
-}
-
-func TestWithContext(t *testing.T) {
-	ctx, cancel := WithContext(context.Background(), sigUsr1)
-	defer cancel()
-
-	go func() {
-		select {
-		case <-ctx.Done():
-		case <-time.After(time.Second):
-			assert.Fail(t, "context uncanceled")
-		}
-	}()
-
-	if err := sendSignal(sigUsr1); err != nil {
-		assert.NoError(t, err)
-	}
 }

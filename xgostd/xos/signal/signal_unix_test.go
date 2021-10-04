@@ -12,6 +12,7 @@ var (
 	sigUsr2 = syscall.SIGUSR2
 )
 
+// sendSignal send a signal to the current process
 func sendSignal(signal os.Signal) error {
 	p, err := os.FindProcess(os.Getpid())
 	if err != nil {

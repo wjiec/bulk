@@ -11,9 +11,11 @@ import (
 
 var (
 	sigUsr1 = syscall.SIGINT
-	sigUsr2 = syscall.SIGHUP
+	sigUsr2 = syscall.SIGINT
 )
 
+// sendSignal send a signal to the current process
+// Note: windows platform may not support sending signals to process
 func sendSignal(_ os.Signal) error {
 	dll, err := syscall.LoadDLL("kernel32.dll")
 	if err != nil {
