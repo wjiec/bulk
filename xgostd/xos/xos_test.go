@@ -10,6 +10,7 @@ import (
 func TestTouch(t *testing.T) {
 	assert.NoError(t, Touch("foo"))
 	assert.Error(t, Touch("foo"))
+	assert.ErrorIs(t, os.ErrExist, Touch("foo"))
 
 	assert.NoError(t, os.Remove("foo"))
 }

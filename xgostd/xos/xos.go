@@ -1,6 +1,8 @@
 package xos
 
-import "os"
+import (
+	"os"
+)
 
 const (
 	// ModeDir represents a file mode in *nix is rwx-rx-rx
@@ -13,8 +15,12 @@ func TempFile() string {
 	return ""
 }
 
-// Touch creates a empty file only, returns error when file exist
+// Touch creates an empty file only, returns error when file exist
 func Touch(filename string) error {
+	if _, err := os.Stat(filename); err == nil {
+		return os.ErrExist
+	}
+
 	fp, err := os.Create(filename)
 	if err != nil {
 		return err
